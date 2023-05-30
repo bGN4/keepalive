@@ -1,0 +1,67 @@
+name: IBM
+
+on:
+  schedule:
+    - cron: '33 22 * * *'
+  workflow_dispatch:
+
+jobs:
+
+  deploy:
+    strategy:
+      matrix:
+        account: [account1, account2]
+    environment: ${{ matrix.account }}
+    runs-on: ubuntu-18.04
+    env:
+      ACCOUNT_FLAG: ${{ secrets.ACCOUNT_FLAG }}
+      IBM_CF_USER: ${{ secrets.IBM_CF_USER }}
+      IBM_CF_PASS: ${{ secrets.IBM_CF_PASS }}
+      IBM_CF_REGION:  ${{ secrets.IBM_CF_REGION }}
+      IBM_CF_APP:  ${{ secrets.IBM_CF_APP }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Divination 
+        run: |
+          [[ "$(shuf -i 0-2 -n 1)" == "1" || ${GITHUB_EVENT_NAME} == "workflow_dispatch" ]] && export job_ready=1 || export job_ready=0
+          echo "job_ready=$job_ready" >> $GITHUB_ENV
+          echo "job_ready=$job_ready"
+          echo $ACCOUNT_FLAG | cut -c14-21
+
+      - name: Install IBM Cloud CLI
+        if: env.job_ready == 1
+        run: |
+          curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
+          ibmcloud -v
+
+      - name: Install Cloud Foundry CLI
+        if: env.job_ready == 1
+        run: |
+          ibmcloud cf install
+          ibmcloud cf -v
+
+      - name: Login to IBM Cloud Foundry
+        if: env.job_ready == 1
+        run: |
+          ibmcloud login \
+          -u "${IBM_CF_USER}" \
+          -p "${IBM_CF_PASS}" \
+          -r "${IBM_CF_REGION}" > ibm.login.log
+          ibmcloud target --cf > ibm.target.log
+
+      - name: Execute
+        if: env.job_ready == 1
+        run: |
+          ibmcloud cf apps > ibm.apps.log
+          ibmcloud cf restart "${IBM_CF_APP}" > ibm.restart.log
+          ibmcloud cf logs "${IBM_CF_APP}" --recent > ibm.logs.log
+          wget -d -O- "https://${IBM_CF_APP}.${IBM_CF_REGION}.cf.appdomain.cloud"
+
+      - name: Output
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: logs
+          path: .

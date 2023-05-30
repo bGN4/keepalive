@@ -1,0 +1,29 @@
+name: Test
+
+on: workflow_dispatch
+
+jobs:
+
+  deploy:
+    strategy:
+      matrix:
+        account: [account1, account2]
+    environment: ${{ matrix.account }}
+    runs-on: ubuntu-latest
+    env:
+      ACCOUNT_FLAG: ${{ secrets.ACCOUNT_FLAG }}
+      IBM_CF_USER: ${{ secrets.IBM_CF_USER }}
+      IBM_CF_PASS: ${{ secrets.IBM_CF_PASS }}
+      IBM_CF_REGION:  ${{ secrets.IBM_CF_REGION }}
+      IBM_CF_APP:  ${{ secrets.IBM_CF_APP }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Debug 
+        run: |
+          echo ">>>${GITHUB_EVENT_NAME}<<<"
+          echo "${IBM_CF_USER%.com*}"
+          echo "${IBM_CF_PASS:1:16}"
+          echo "${IBM_CF_REGION:1:10}"
+          echo "${IBM_CF_APP:1:10}"

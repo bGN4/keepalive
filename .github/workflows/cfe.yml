@@ -1,0 +1,65 @@
+name: Test CE
+
+on: workflow_dispatch
+
+jobs:
+
+  deploy:
+    strategy:
+      matrix:
+        account: [account1, account2]
+    environment: ${{ matrix.account }}
+    runs-on: ubuntu-latest
+    env:
+      ACCOUNT_FLAG: ${{ secrets.ACCOUNT_FLAG }}
+      IBM_CF_USER: ${{ secrets.IBM_CF_USER }}
+      IBM_CF_PASS: ${{ secrets.IBM_CF_PASS }}
+      IBM_CF_REGION:  ${{ secrets.IBM_CF_REGION }}
+      IBM_CF_APP:  ${{ secrets.IBM_CF_APP }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Divination 
+        run: |
+          [[ $IBM_CF_APP == "toosimple" ]] && export job_ready=0 || export job_ready=1
+          echo "job_ready=$job_ready" >> $GITHUB_ENV
+          echo "job_ready=$job_ready"
+          echo $ACCOUNT_FLAG | cut -c14-21
+
+      - name: Install IBM Cloud CLI
+        if: env.job_ready == 1
+        run: |
+          curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
+          ibmcloud -v
+
+      - name: Install Cloud Foundry CLI
+        if: env.job_ready == 1
+        run: |
+          ibmcloud cf install
+          ibmcloud cf -v
+          ibmcloud plugin install code-engine
+          ibmcloud plugin list
+          ibmcloud ce help
+
+      - name: Login to IBM Cloud Foundry
+        if: env.job_ready == 1
+        run: |
+          ibmcloud login \
+          -u "${IBM_CF_USER}" \
+          -p "${IBM_CF_PASS}" \
+          -r "${IBM_CF_REGION}"
+          ibmcloud target --cf
+
+      - name: Execute
+        if: env.job_ready == 1
+        run: |
+          ibmcloud cf apps
+          wget -d -O- "https://${IBM_CF_APP}.${IBM_CF_REGION}.cf.appdomain.cloud"
+
+      - name: Output
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: logs
+          path: .

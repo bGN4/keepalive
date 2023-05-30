@@ -1,0 +1,39 @@
+name: Clean up
+
+on:
+  schedule:
+    - cron: '43 21 * * *'
+  workflow_dispatch:
+
+jobs:
+
+  cleanup:
+
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get install -y gh jq
+          touch action.log deploy.log
+
+      - name: deploy.log
+        run: |
+          gh api repos/$GITHUB_REPOSITORY/deployments?per_page=100 \
+          | jq -r 'map(.url) | join("\n")' > deploy.log
+          cat deploy.log
+
+      - name: action.log
+        run: |
+          gh api repos/$GITHUB_REPOSITORY/actions/runs?per_page=100 \
+          | jq -r '.workflow_runs[] | select(.status != "in_progress") | "\(.id) \(.status) \(.created_at)"' \
+          | grep -v queued | awk -v d="`date --date='15 day ago' +%Y-%m-%d`" '$3 < d { print $1 }' > action.log
+          cat action.log
+
+      - name: Delete
+        run: |
+          while read i; do gh api repos/$GITHUB_REPOSITORY/actions/runs/$i -X DELETE; done < action.log
+          while read i; do gh api $i -X DELETE || true; done < deploy.log
